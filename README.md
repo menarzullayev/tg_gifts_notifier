@@ -72,9 +72,9 @@ Savollar yoki takliflar uchun [muallif bilan bog'laning](https://t.me/menarzulla
 Agar **TezUpgrade** siz uchun foydali bo'lsa va loyiha rivojini qo'llab-quvvatlashni istasangiz, xayriya qilishingiz mumkin. Sizning hissangiz loyihani yanada yaxshilashga yordam beradi.
 
 ## Xayriya usullari
-    - **HUMO** - `9860 6004 0823 7573`
-    - **UzCard** - `5614 6819 0148 7375`
-    - **Mastercard** - `5477 3300 2178 3679`
-    - **TON** - `UQD6KUkX6M5eXTx5ysO__hR0svpI8UlU_rC2qcEnkxVwYKb8`
+  **HUMO** - `9860 6004 0823 7573`
+  **UzCard** - `5614 6819 0148 7375`
+  **Mastercard** - `5477 3300 2178 3679`
+  **TON** - `UQD6KUkX6M5eXTx5ysO__hR0svpI8UlU_rC2qcEnkxVwYKb8`
 
 Qo'llab-quvvatlaganingiz uchun tashakkur\!
