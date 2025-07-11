@@ -2,7 +2,7 @@
 
 ## Overview
 
-**TG Gifts Notifier** — bu Telegram platformasidagi sovg'alarni real vaqt rejimida kuzatib borish, yangilari haqida xabar berish va "upgradable" sovg'alarni maxsus topic'li guruhlarda kuzatish uchun mo'ljallangan ilg'or userbot.
+**Tez Upgrade** — bu Telegram platformasidagi sovg'alarni real vaqt rejimida kuzatib borish, yangilari haqida xabar berish va "upgradable" sovg'alarni maxsus topic'li guruhlarda kuzatish uchun mo'ljallangan ilg'or userbot.
 
 Bizning Asosiy Telegram Kanalimiz — [Crypto Games](https://t.me/crypto_click_games)
 
