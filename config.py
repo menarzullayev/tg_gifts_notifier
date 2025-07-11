@@ -26,7 +26,7 @@ SESSION_NAME = os.environ.get("SESSION_NAME", "account")
 # --- Xavfsiz o'zgaruvchilar (Kodning o'zida qoladi) ---
 
 # Render.com'dagi doimiy disk uchun yo'l
-DATA_FILEPATH = Path("/data/star_gifts.json")
+# DATA_FILEPATH = Path("/data/star_gifts.json")
 # Agar loyihani o'z kompyuteringizda ishga tushirmoqchi bo'lsangiz, yuqoridagi qatorni izohga oling (#)
 # va quyidagi qatorni izohdan oching:
 DATA_FILEPATH = constants.WORK_DIRPATH / "star_gifts.json"
