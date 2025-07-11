@@ -306,44 +306,55 @@ async def find_last_upgrade_by_binary_search(slug: str, max_range: int = 1_000_0
     return last_found
 
 
+
 async def upgrade_live_tracker(app: Client) -> None:
     """
-    Kuzatuvga qo'shilgan sovg'alar uchun ketma-ket upgrade'larni
-    HTTP so'rov orqali tekshiradi va topilganlarini topic'ga yuboradi.
+    Kuzatuvdagi sovg'alarni "sprint" usulida tekshiradi: bitta sovg'a uchun
+    barcha mavjud upgrade'larni topmaguncha to'xtamaydi.
     """
     next_check_numbers = {}
+
     while True:
         trackable_gifts = [g for g in STAR_GIFTS_DATA.star_gifts if g.is_upgradable and g.gift_slug]
+
         for star_gift in trackable_gifts:
+            # Agar bu sovg'a birinchi marta tekshirilayotgan bo'lsa, uning boshlang'ich raqamini o'rnatamiz
             if star_gift.gift_slug not in next_check_numbers:
                 start_num = star_gift.last_checked_upgrade_id or 0
                 next_check_numbers[star_gift.gift_slug] = start_num + 1
-                if star_gift.live_topic_id is None:
-                    try:
-                        created_topic = await app.create_forum_topic(chat_id=STAR_GIFTS_DATA.upgrade_live_chat_id, title=star_gift.gift_slug)
-                        star_gift.live_topic_id = created_topic.id
-                        logger.info(f"'{star_gift.gift_slug}' nomi bilan yangi topic yaratildi (Topic ID: {created_topic.id})")
-                        await bot_send_request("sendMessage", {"chat_id": STAR_GIFTS_DATA.upgrade_live_chat_id, "message_thread_id": star_gift.live_topic_id, "text": config.NOTIFY_UPGRADE_LIVE_START_TEXT.format(gift_slug=star_gift.gift_slug, footer=config.FOOTER_TEXT), "parse_mode": "HTML", "disable_web_page_preview": True})
-                        await star_gifts_data_saver(star_gift)
-                    except Exception as e:
-                        logger.error(f"'{star_gift.gift_slug}' uchun topic yaratishda xato: {e}")
-                        continue
 
+            # Agar topic hali ochilmagan bo'lsa, ochamiz
+            if star_gift.live_topic_id is None:
+                try:
+                    created_topic = await app.create_forum_topic(chat_id=STAR_GIFTS_DATA.upgrade_live_chat_id, title=star_gift.gift_slug)
+                    star_gift.live_topic_id = created_topic.id
+                    await bot_send_request("sendMessage", {"chat_id": STAR_GIFTS_DATA.upgrade_live_chat_id, "message_thread_id": star_gift.live_topic_id, "text": config.NOTIFY_UPGRADE_LIVE_START_TEXT.format(gift_slug=star_gift.gift_slug, footer=config.FOOTER_TEXT), "parse_mode": "HTML", "disable_web_page_preview": True})
+                    await star_gifts_data_saver(star_gift)
+                except Exception as e:
+                    logger.error(f"'{star_gift.gift_slug}' uchun topic yaratishda xato: {e}")
+                    continue
+            
+            # --- YANGILANGAN MANTIQ: "SPRINT" SIKLI ---
             while True:
                 current_check_num = next_check_numbers.get(star_gift.gift_slug, 1)
                 url = f"https://t.me/nft/{star_gift.gift_slug}-{current_check_num}"
+                
                 try:
                     async with AsyncClient(timeout=5) as client:
                         response = await client.get(url, follow_redirects=False)
+
                     if response.status_code == 200:
                         logger.info(f"[+] TOPILDI: {star_gift.gift_slug}-{current_check_num}")
+                        
                         final_gift_name = star_gift.gift_slug or str(star_gift.id)
                         await bot_send_request("sendMessage", {"chat_id": STAR_GIFTS_DATA.upgrade_live_chat_id, "message_thread_id": star_gift.live_topic_id, "text": config.NOTIFY_UPGRADE_LIVE_MESSAGE_FORMAT.format(gift_name=final_gift_name, upgraded_id=current_check_num, footer=config.FOOTER_TEXT), "parse_mode": "HTML", "disable_web_page_preview": False})
+                        
                         next_check_numbers[star_gift.gift_slug] += 1
                         star_gift.last_checked_upgrade_id = current_check_num
                         await star_gifts_data_saver(star_gift)
-                        await asyncio.sleep(0.1)
+                        await asyncio.sleep(0.1) # Har bir topilgan upgrade orasida kichik pauza
                     else:
+                        # Bu raqamdagi upgrade topilmadi, demak, "sprint" tugadi.
                         break
                 except Exception as e:
                     error_text = str(e).lower()
@@ -355,6 +366,8 @@ async def upgrade_live_tracker(app: Client) -> None:
                     else:
                         logger.warning(f"URL tekshirishda xato ({url}): {e}")
                     break
+
+        # Barcha sovg'alarni va ularning "sprint"larini tugatgandan so'ng, umumiy pauza qilamiz.
         await asyncio.sleep(config.UPGRADE_CHECK_INTERVAL)
 
 
