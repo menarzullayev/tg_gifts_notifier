@@ -1,28 +1,28 @@
-# Tez Upgrade | Gift upgrades
+# Tez Upgrade | Telegram Gift Notifier
 
-## Overview
+##  overview
 
-**Tez Upgrade** — bu Telegram platformasidagi sovg'alarni real vaqt rejimida kuzatib borish, yangilari haqida xabar berish va "upgradable" sovg'alarni maxsus topic'li guruhlarda kuzatish uchun mo'ljallangan ilg'or userbot.
+**Tez Upgrade** — bu Telegram platformasidagi "Star" sovg'alarini real vaqt rejimida kuzatib borish, yangilari haqida xabar berish va "upgradable" sovg'alarni maxsus topic'li guruhlarda kuzatish uchun mo'ljallangan ilg'or userbot.
 
 Bizning Asosiy Telegram Kanalimiz — [Crypto Games](https://t.me/crypto_click_games)
 
-Bizning "Upgrade Live" chatimiz — [TezUpgrade](https://t.me/TezUpgrade)
+Bizning "Upgrade Live" Chatimiz — [TezUpgrade](https://t.me/TezUpgrade)
 
 ## ⚙️ Asosiy Imkoniyatlar
 
 **Eslatma:** Loyihani ishga tushirish uchun **Python 3.10** yoki undan yuqori versiya talab etiladi.
 
-  - **Yangi Sovg'alarni Aniqlash:** Yangi sovg'alar paydo bo'lganda belgilangan kanalga stiker va batafsil ma'lumot yuboradi.
-  - **"Live Upgrade" Kuzatuvi:** "Upgradable" sovg'alar uchun alohida topic ochib, HTTP so'rovlar yordamida yangi "upgrade"larni topadi va havolalarini joylab boradi.
-  - **Binary Search:** Yangi to'plam qo'shilganda, joriy "upgrade" ID sini bir necha soniyada **Binary Search** algoritmi orqali avtomatik topadi va yuz minglab keraksiz so'rovlarning oldini oladi.
-  - **Admin Boshqaruvi:** Maxsus admin buyruqlari (`/addnew`) orqali tizimga yangi sovg'alar to'plamini osonlikcha qo'shish imkoniyati.
-  - **Moslashuvchan Sozlamalar:** Barcha kerakli parametrlarni `config.py` fayli orqali osonlikcha boshqarish.
+-   **Yangi Sovg'alarni Aniqlash:** Yangi sovg'alar paydo bo'lganda belgilangan kanalga stiker va batafsil ma'lumot yuboradi.
+-   **"Live Upgrade" Kuzatuvi:** "Upgradable" sovg'alar uchun alohida topic ochib, HTTP so'rovlar yordamida yangi "upgrade"larni topadi va havolalarini joylab boradi.
+-   **Binary Search:** Yangi to'plam qo'shilganda, joriy "upgrade" ID sini bir necha soniyada **Binary Search** algoritmi orqali avtomatik topadi va yuz minglab keraksiz so'rovlarning oldini oladi.
+-   **Admin Boshqaruvi:** Maxsus admin buyruqlari (`/addnew`) orqali tizimga yangi sovg'alar to'plamini osonlikcha qo'shish imkoniyati.
+-   **Xavfsiz Konfiguratsiya:** Barcha maxfiy ma'lumotlar muhit o'zgaruvchilari (Environment Variables) orqali boshqariladi va kodingizda saqlanmaydi.
 
 ## 🚀 O'rnatish va Ishga Tushirish
 
 1.  **Loyihani yuklab oling:**
     ```sh
-    git clone https://github.com/menarzullayev/tg_gifts_notifier.git
+    git clone [https://github.com/menarzullayev/tg_gifts_notifier.git](https://github.com/menarzullayev/tg_gifts_notifier.git)
     ```
 2.  **Loyiha papkasiga o'ting:**
     ```sh
@@ -32,34 +32,56 @@ Bizning "Upgrade Live" chatimiz — [TezUpgrade](https://t.me/TezUpgrade)
     ```sh
     pip install -r requirements.txt
     ```
-4.  **Dasturni ishga tushiring:**
+4.  **Dasturni ishga tushirishdan oldin sozlang (pastdagi bo'limga qarang).**
+5.  **Dasturni ishga tushiring:**
     ```sh
     python detector.py
     ```
     Birinchi marta ishga tushirganda, `Pyrogram` sizdan Telegram akkauntingizga kirish uchun kerakli ma'lumotlarni (telefon raqam, parol, tasdiqlash kodi) so'raydi.
 
-## ⚙️ Konfiguratsiya (`config.py`)
+## ⚙️ Konfiguratsiya (Muhim!)
 
-Dasturni ishlatishdan oldin, `config.py` faylini ochib, quyidagi maydonlarni o'zingizning ma'lumotlaringiz bilan to'ldirishingiz shart.
+Dastur maxfiy ma'lumotlarni **muhit o'zgaruvchilari (Environment Variables)** orqali o'qiydi. Bu ma'lumotlarni ikki xil usulda kiritish mumkin:
 
-| Maydon | Turi | Tavsif |
+#### 1. Mahalliy Kompyuterda Ishlatish Uchun (`.env` fayli)
+
+1.  Loyiha papkasida `.env` nomli fayl yarating.
+2.  Quyidagi shablonni o'sha faylga nusxalab, o'zingizning ma'lumotlaringiz bilan to'ldiring:
+
+    ```env
+    API_ID=12345678
+    API_HASH=your_api_hash_here
+    BOT_TOKENS=token1,token2,token3
+    ADMIN_IDS=123456789,987654321
+    NOTIFY_CHAT_ID=-100...
+    UPGRADE_LIVE_CHAT_ID=-100...
+    SESSION_NAME=my_account
+    ```
+
+#### 2. Serverda Ishlatish Uchun (Render.com)
+
+1.  Render.com'dagi loyihangiz sozlamalariga kiring.
+2.  Chap menyudagi **"Environment"** bo'limiga o'ting.
+3.  **"Add Environment Variable"** tugmasini bosib, yuqoridagi har bir o'zgaruvchini alohida-alohida qo'shib chiqing. Masalan:
+    -   **Key:** `API_ID`, **Value:** `12345678`
+    -   **Key:** `API_HASH`, **Value:** `your_api_hash_here`
+    -   ...va hokazo.
+
+| O'zgaruvchi | Turi | Tavsif |
 | :--- | :--- | :--- |
-| **SESSION\_NAME** | String | Userbot sessiyasi saqlanadigan fayl nomi (masalan, `"my_account"`). |
-| **API\_ID** | Integer | `my.telegram.org` saytidan olinadigan shaxsiy API ID'ingiz. |
-| **API\_HASH** | String | `my.telegram.org` saytidan olinadigan shaxsiy API Hash'ingiz. |
-| **BOT\_TOKENS** | List[String] | `@BotFather` orqali olingan bot(lar)ingizning tokenlari ro'yxati. |
-| **NOTIFY\_CHAT\_ID** | Integer | Yangi sovg'alar haqidagi asosiy xabarlar yuboriladigan kanal ID'si. |
-| **UPGRADE\_LIVE\_CHAT\_ID** | Integer | "Upgrade" kuzatuvi uchun topic'lar ochiladigan guruh (forum) ID'si. |
-| **ADMIN\_IDS** | List[Integer] | Dasturni buyruqlar orqali boshqara oladigan adminlarning Telegram ID'lari. |
-| **CHECK\_INTERVAL** | Float | Yangi sovg'alarni tekshirish oralig'i (soniya). |
-| **UPGRADE\_CHECK\_INTERVAL**| Float | "Upgrade"larni tekshirish oralig'i (soniya). |
-| **FOOTER\_TEXT** | String | Har bir xabar oxiriga qo'shiladigan reklama matni. |
+| **SESSION_NAME** | String | Userbot sessiyasi saqlanadigan fayl nomi. |
+| **API_ID** | Integer | `my.telegram.org` saytidan olinadigan shaxsiy API ID'ingiz. |
+| **API_HASH** | String | `my.telegram.org` saytidan olinadigan shaxsiy API Hash'ingiz. |
+| **BOT_TOKENS** | String | Bot tokenlari (vergul bilan ajratilgan holda). |
+| **NOTIFY_CHAT_ID** | Integer | Yangi sovg'alar haqidagi asosiy xabarlar yuboriladigan kanal ID'si. |
+| **UPGRADE_LIVE_CHAT_ID** | Integer | "Upgrade" kuzatuvi uchun topic'lar ochiladigan guruh (forum) ID'si. |
+| **ADMIN_IDS** | String | Adminlarning Telegram ID'lari (vergul bilan ajratilgan holda). |
 
 ## 👨‍💻 Admin Buyruqlari
 
 Ushbu buyruqlar faqat `ADMIN_IDS` ro'yxatidagi foydalanuvchilar tomonidan userbot akkauntiga tegishli istalgan chatda yuborilishi mumkin.
 
-  - `/addnew <nom> <gift_ID>`
+-   `/addnew <nom> <bitta_boshlangich_ID>`
     Tizimga yangi sovg'alar to'plamini qo'shadi. Dastur shu nom bilan topic ochadi va berilgan ID'dan foydalanib, joriy "upgrade" sonini Binary Search orqali avtomatik topadi.
     *Masalan:* `/addnew SnoopDogg 6014591077976114307`
 
@@ -67,7 +89,7 @@ Ushbu buyruqlar faqat `ADMIN_IDS` ro'yxatidagi foydalanuvchilar tomonidan userbo
 
 Savollar yoki takliflar uchun [muallif bilan bog'laning](https://t.me/menarzullayev/).
 
------
+---
 
 Agar **TezUpgrade** siz uchun foydali bo'lsa va loyiha rivojini qo'llab-quvvatlashni istasangiz, xayriya qilishingiz mumkin. Sizning hissangiz loyihani yanada yaxshilashga yordam beradi.
 
