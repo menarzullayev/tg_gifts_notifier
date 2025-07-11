@@ -22,7 +22,7 @@ UPGRADE_CHECK_INTERVAL = 1.0
 DATA_SAVER_DELAY = 2.0
 NOTIFY_AFTER_STICKER_DELAY = 1.0
 NOTIFY_AFTER_TEXT_DELAY = 2.0
-TIMEZONE = "UTC+5"
+TIMEZONE = "Asia/Tashkent"
 CONSOLE_LOG_LEVEL = logging.INFO
 FILE_LOG_LEVEL = logging.INFO
 HTTP_REQUEST_TIMEOUT = 20.0
@@ -33,6 +33,7 @@ NOTIFY_TEXT = """{title}\n\n№ {number} (<code>{id}</code>){total_amount}{avail
 NOTIFY_TEXT_TITLES = {True: "🔥 Yangi cheklangan sovg'a paydo bo'ldi", False: "❄️ Yangi sovg'a paydo bo'ldi"}
 NOTIFY_TEXT_TOTAL_AMOUNT = "\n🎯 Umumiy soni: {total_amount}"
 NOTIFY_TEXT_AVAILABLE_AMOUNT = "\n❓ Mavjud soni: {available_amount} ({same_str}{available_percentage}%, {updated_datetime} UTC+5 da yangilandi)"
+
 NOTIFY_TEXT_SOLD_OUT = "\n⏰ {sold_out} vaqt ichida to'liq sotildi"
 NOTIFY_UPGRADE_LIVE_START_TEXT = "✅ `{gift_slug}` uchun kuzatuv boshlandi!{footer}"
 NOTIFY_UPGRADE_LIVE_MESSAGE_FORMAT = """Upg ⬆️: <a href="https://t.me/nft/{gift_name}-{upgraded_id}">{gift_name}-{upgraded_id}</a>{footer}"""
