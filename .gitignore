@@ -6,8 +6,25 @@
 *.json
 *.session*
 *.service
-config*.py
 logs/
 
 !requirements.txt
-!config.example.py
+
+# Python
+__pycache__/
+*.pyc
+
+# Environment
+.env
+
+# Session & Data
+*.session*
+star_gifts.json
+
+# Logs
+logs/
+*.log
+
+# IDE
+.idea/
+.vscode/
