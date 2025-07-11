@@ -32,6 +32,10 @@ class StarGiftData(BaseConfigModel):
 
 class StarGiftsData(BaseConfigModel):
     DATA_FILEPATH: Path = Field(exclude=True)
+    
+    notify_chat_id: int | None = Field(default=None)
+    upgrade_live_chat_id: int | None = Field(default=None)
+    
     star_gifts: list[StarGiftData] = Field(default_factory=list[StarGiftData])
 
     @classmethod

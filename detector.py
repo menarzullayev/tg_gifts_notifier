@@ -175,11 +175,13 @@ async def process_new_gift(app: Client, star_gift: StarGiftData) -> None:
 
     binary.name = star_gift.sticker_file_name
 
-    sticker_message = typing.cast(types.Message, await app.send_sticker(chat_id=config.NOTIFY_CHAT_ID, sticker=binary))  # pyright: ignore[reportUnknownMemberType]
+    sticker_message = typing.cast(types.Message, await app.send_sticker(chat_id=STAR_GIFTS_DATA.notify_chat_id, sticker=binary))  # pyright: ignore[reportUnknownMemberType]
 
     await asyncio.sleep(config.NOTIFY_AFTER_STICKER_DELAY)
 
-    response = await bot_send_request("sendMessage", {"chat_id": config.NOTIFY_CHAT_ID, "text": get_notify_text(star_gift), "reply_to_message_id": sticker_message.id, "parse_mode": "HTML", "disable_web_page_preview": True})  # <-- Preview o'chirilgan
+    response = await bot_send_request(
+        "sendMessage", {"chat_id": STAR_GIFTS_DATA.notify_chat_id, "text": get_notify_text(star_gift), "reply_to_message_id": sticker_message.id, "parse_mode": "HTML", "disable_web_page_preview": True}
+    )  # <-- Preview o'chirilgan
     star_gift.message_id = response["message_id"]
 
 
@@ -210,7 +212,7 @@ async def process_update_gifts(update_gifts_queue: UPDATE_GIFTS_QUEUE_T) -> None
                 continue
 
             await bot_send_request(
-                "editMessageText", {"chat_id": config.NOTIFY_CHAT_ID, "message_id": new_star_gift.message_id, "text": get_notify_text(new_star_gift), "parse_mode": "HTML", "disable_web_page_preview": True}  # <-- Preview o'chirilgan
+                "editMessageText", {"chat_id": STAR_GIFTS_DATA.notify_chat_id, "message_id": new_star_gift.message_id, "text": get_notify_text(new_star_gift), "parse_mode": "HTML", "disable_web_page_preview": True}  # <-- Preview o'chirilgan
             )
             logger.debug(f"Star gift updated with {new_star_gift.available_amount} available amount", extra={"star_gift_id": str(new_star_gift.id)})
 
@@ -246,7 +248,6 @@ async def star_gifts_data_saver(star_gifts: StarGiftData | list[StarGiftData]) -
             STAR_GIFTS_DATA.save()
 
             last_star_gifts_data_saved_time = utils.get_current_timestamp()
-
 
 
 async def find_last_upgrade_by_binary_search(slug: str, max_range: int = 1_000_000) -> int:
@@ -303,14 +304,15 @@ async def upgrade_live_tracker(app: Client) -> None:
 
                 if star_gift.live_topic_id is None:
                     try:
-                        created_topic = await app.create_forum_topic(chat_id=config.UPGRADE_LIVE_CHAT_ID, title=star_gift.gift_slug)
+                        created_topic = await app.create_forum_topic(chat_id=STAR_GIFTS_DATA.upgrade_live_chat_id, title=star_gift.gift_slug)
+
                         star_gift.live_topic_id = created_topic.id
                         logger.info(f"'{star_gift.gift_slug}' nomi bilan yangi topic yaratildi (Topic ID: {created_topic.id})")
 
                         await bot_send_request(
                             "sendMessage",
                             {
-                                "chat_id": config.UPGRADE_LIVE_CHAT_ID,
+                                "chat_id": STAR_GIFTS_DATA.upgrade_live_chat_id,
                                 "message_thread_id": star_gift.live_topic_id,
                                 "text": config.NOTIFY_UPGRADE_LIVE_START_TEXT.format(gift_id=star_gift.id, footer=config.FOOTER_TEXT),
                                 "parse_mode": "HTML",
@@ -336,7 +338,7 @@ async def upgrade_live_tracker(app: Client) -> None:
                         await bot_send_request(
                             "sendMessage",
                             {
-                                "chat_id": config.UPGRADE_LIVE_CHAT_ID,
+                                "chat_id": STAR_GIFTS_DATA.upgrade_live_chat_id,
                                 "message_thread_id": star_gift.live_topic_id,
                                 "text": config.NOTIFY_UPGRADE_LIVE_MESSAGE_FORMAT.format(gift_name=final_gift_name, upgraded_id=current_check_num, footer=config.FOOTER_TEXT),
                                 "parse_mode": "HTML",
@@ -450,11 +452,13 @@ async def main() -> None:
             upgraded_id_to_test = int(message.command[3])
 
             # Topic nomini o'zgartiramiz
-            await client.edit_forum_topic(chat_id=config.UPGRADE_LIVE_CHAT_ID, topic_id=topic_id_to_test, title=real_gift_name)
+            await client.edit_forum_topic(chat_id=STAR_GIFTS_DATA.upgrade_live_chat_id, topic_id=topic_id_to_test, title=real_gift_name)
             await message.reply_text(f"✅ Topic (ID: {topic_id_to_test}) nomi `{real_gift_name}` ga o'zgartirildi.")
 
             # O'sha topic'ga test xabarini yuboramiz
-            await bot_send_request("sendMessage", {"chat_id": config.UPGRADE_LIVE_CHAT_ID, "message_thread_id": topic_id_to_test, "text": config.NOTIFY_UPGRADE_LIVE_MESSAGE_FORMAT.format(gift_name=real_gift_name, upgraded_id=upgraded_id_to_test)})
+            await bot_send_request(
+                "sendMessage", {"chat_id": STAR_GIFTS_DATA.upgrade_live_chat_id, "message_thread_id": topic_id_to_test, "text": config.NOTIFY_UPGRADE_LIVE_MESSAGE_FORMAT.format(gift_name=real_gift_name, upgraded_id=upgraded_id_to_test)}
+            )
             await message.reply_text(f"✅ Topic'ga test upgrade havolasi yuborildi.")
 
         except (IndexError, ValueError):
@@ -491,7 +495,7 @@ async def main() -> None:
             # Agar bu sovg'a uchun topic ochilgan bo'lsa, uning nomini ham yangilaymiz
             if gift_to_set.live_topic_id:
                 try:
-                    await client.edit_forum_topic(chat_id=config.UPGRADE_LIVE_CHAT_ID, topic_id=gift_to_set.live_topic_id, title=new_gift_name)
+                    await client.edit_forum_topic(chat_id=STAR_GIFTS_DATA.upgrade_live_chat_id, topic_id=gift_to_set.live_topic_id, title=new_gift_name)
                     success_message += f"\n✅ Topic (ID: {gift_to_set.live_topic_id}) nomi ham yangilandi."
                 except Exception as e:
                     logger.error(f"Topic nomini o'zgartirishda xato: {e}")
@@ -557,6 +561,31 @@ async def main() -> None:
         except (IndexError, ValueError):
             await message.reply_text("❌ Xatolik: Buyruqni to'g'ri formatda kiriting:\n" "`/addnew <yangi_nom> <bitta_ID>`\n\n" "Masalan:\n" "`/addnew SnoopDogg 6014591077976114307`")
 
+    @app.on_message(filters.command("setchat", prefixes=config.COMMAND_PREFIX) & filters.user(config.ADMIN_IDS))
+    async def handle_set_chat_id(client: Client, message: types.Message):
+        try:
+            new_id = int(message.command[1])
+            STAR_GIFTS_DATA.notify_chat_id = new_id
+            STAR_GIFTS_DATA.save()
+            await message.reply_text(f"✅ Yangi sovg'alar kanali ID'si o'rnatildi: `{new_id}`")
+        except (IndexError, ValueError):
+            await message.reply_text("❌ Xatolik: `/setchat <chat_id>`")
+
+    @app.on_message(filters.command("setlivechat", prefixes=config.COMMAND_PREFIX) & filters.user(config.ADMIN_IDS))
+    async def handle_set_live_chat_id(client: Client, message: types.Message):
+        try:
+            new_id = int(message.command[1])
+            STAR_GIFTS_DATA.upgrade_live_chat_id = new_id
+            STAR_GIFTS_DATA.save()
+            await message.reply_text(f"✅ 'Live Upgrade' guruhi ID'si o'rnatildi: `{new_id}`")
+        except (IndexError, ValueError):
+            await message.reply_text("❌ Xatolik: `/setlivechat <chat_id>`")
+
+    if STAR_GIFTS_DATA.notify_chat_id is None:
+        STAR_GIFTS_DATA.notify_chat_id = STAR_GIFTS_DATA.notify_chat_id
+    if STAR_GIFTS_DATA.upgrade_live_chat_id is None:
+        STAR_GIFTS_DATA.upgrade_live_chat_id = STAR_GIFTS_DATA.upgrade_live_chat_id
+
     update_gifts_queue = UPDATE_GIFTS_QUEUE_T() if BOTS_AMOUNT > 0 else None
 
     if update_gifts_queue:
@@ -564,7 +593,7 @@ async def main() -> None:
     else:
         logger.info("No bots available, skipping update gifts processing")
 
-    if config.UPGRADE_LIVE_CHAT_ID:
+    if STAR_GIFTS_DATA.upgrade_live_chat_id:
         asyncio.create_task(logger_wrapper(upgrade_live_tracker(app)))
     else:
         logger.info("Upgrade Live channel is not set, skipping star gifts live upgrades tracking")
