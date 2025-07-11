@@ -4,7 +4,6 @@
 *.sh
 *.txt
 *.json
-*.session*
 *.service
 logs/
 
