@@ -22,7 +22,7 @@ Bizning "Upgrade Live" Chatimiz — [TezUpgrade](https://t.me/TezUpgrade)
 
 1.  **Loyihani yuklab oling:**
     ```sh
-    git clone [https://github.com/menarzullayev/tg_gifts_notifier.git](https://github.com/menarzullayev/tg_gifts_notifier.git)
+    git clone https://github.com/menarzullayev/tg_gifts_notifier.git
     ```
 2.  **Loyiha papkasiga o'ting:**
     ```sh
