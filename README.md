@@ -1,82 +1,80 @@
-# TG Gifts Notifier
+# Tez Upgrade | Gift upgrades
 
 ## Overview
 
-TG Gifts Notifier is a tool designed to notify users about new gifts available on the Telegram platform. It helps users stay updated and never miss out on any gifts.
+**TG Gifts Notifier** — bu Telegram platformasidagi sovg'alarni real vaqt rejimida kuzatib borish, yangilari haqida xabar berish va "upgradable" sovg'alarni maxsus topic'li guruhlarda kuzatish uchun mo'ljallangan ilg'or userbot.
 
-Our Main Telegram Channel — [Gifts Detector](https://t.me/gifts_detector)
+Bizning Asosiy Telegram Kanalimiz — [Crypto Games](https://t.me/crypto_click_games)
 
-Our Upgrades Telegram Channel — [Gifts Upgrades Detector](https://t.me/gifts_upgrades_detector)
+Bizning "Upgrade Live" chatimiz — [TezUpgrade](https://t.me/TezUpgrade)
 
-## Features
+## ⚙️ Asosiy Imkoniyatlar
 
-**Note:** This project requires Python 3.10 or higher to run.
+**Eslatma:** Loyihani ishga tushirish uchun **Python 3.10** yoki undan yuqori versiya talab etiladi.
 
-- Real-time notifications
-- Easy setup and configuration
-- Customizable notification settings
+  - **Yangi Sovg'alarni Aniqlash:** Yangi sovg'alar paydo bo'lganda belgilangan kanalga stiker va batafsil ma'lumot yuboradi.
+  - **"Live Upgrade" Kuzatuvi:** "Upgradable" sovg'alar uchun alohida topic ochib, HTTP so'rovlar yordamida yangi "upgrade"larni topadi va havolalarini joylab boradi.
+  - **Binary Search:** Yangi to'plam qo'shilganda, joriy "upgrade" ID sini bir necha soniyada **Binary Search** algoritmi orqali avtomatik topadi va yuz minglab keraksiz so'rovlarning oldini oladi.
+  - **Admin Boshqaruvi:** Maxsus admin buyruqlari (`/addnew`) orqali tizimga yangi sovg'alar to'plamini osonlikcha qo'shish imkoniyati.
+  - **Moslashuvchan Sozlamalar:** Barcha kerakli parametrlarni `config.py` fayli orqali osonlikcha boshqarish.
 
-## Installation
+## 🚀 O'rnatish va Ishga Tushirish
 
-To install TG Gifts Notifier, follow these steps:
-
-1. Clone the repository:
-
+1.  **Loyihani yuklab oling:**
     ```sh
-    git clone https://github.com/arynyklas/tg_gifts_notifier.git
+    git clone https://github.com/menarzullayev/tg_gifts_notifier.git
     ```
-
-2. Navigate to the project directory:
-
+2.  **Loyiha papkasiga o'ting:**
     ```sh
     cd tg_gifts_notifier
     ```
-
-3. Install the required dependencies:
-
+3.  **Kerakli kutubxonalarni o'rnating:**
     ```sh
     pip install -r requirements.txt
     ```
+4.  **Dasturni ishga tushiring:**
+    ```sh
+    python detector.py
+    ```
+    Birinchi marta ishga tushirganda, `Pyrogram` sizdan Telegram akkauntingizga kirish uchun kerakli ma'lumotlarni (telefon raqam, parol, tasdiqlash kodi) so'raydi.
 
-## Usage
+## ⚙️ Konfiguratsiya (`config.py`)
 
-To start the notifier, run:
+Dasturni ishlatishdan oldin, `config.py` faylini ochib, quyidagi maydonlarni o'zingizning ma'lumotlaringiz bilan to'ldirishingiz shart.
 
-```sh
-python detector.py
-```
+| Maydon | Turi | Tavsif |
+| :--- | :--- | :--- |
+| **SESSION\_NAME** | String | Userbot sessiyasi saqlanadigan fayl nomi (masalan, `"my_account"`). |
+| **API\_ID** | Integer | `my.telegram.org` saytidan olinadigan shaxsiy API ID'ingiz. |
+| **API\_HASH** | String | `my.telegram.org` saytidan olinadigan shaxsiy API Hash'ingiz. |
+| **BOT\_TOKENS** | List[String] | `@BotFather` orqali olingan bot(lar)ingizning tokenlari ro'yxati. |
+| **NOTIFY\_CHAT\_ID** | Integer | Yangi sovg'alar haqidagi asosiy xabarlar yuboriladigan kanal ID'si. |
+| **UPGRADE\_LIVE\_CHAT\_ID** | Integer | "Upgrade" kuzatuvi uchun topic'lar ochiladigan guruh (forum) ID'si. |
+| **ADMIN\_IDS** | List[Integer] | Dasturni buyruqlar orqali boshqara oladigan adminlarning Telegram ID'lari. |
+| **CHECK\_INTERVAL** | Float | Yangi sovg'alarni tekshirish oralig'i (soniya). |
+| **UPGRADE\_CHECK\_INTERVAL**| Float | "Upgrade"larni tekshirish oralig'i (soniya). |
+| **FOOTER\_TEXT** | String | Har bir xabar oxiriga qo'shiladigan reklama matni. |
 
-## Configuration
+## 👨‍💻 Admin Buyruqlari
 
-At first rename `config.example.py` to `config.py`.
+Ushbu buyruqlar faqat `ADMIN_IDS` ro'yxatidagi foydalanuvchilar tomonidan userbot akkauntiga tegishli istalgan chatda yuborilishi mumkin.
 
-Then, you must configure the notifier by editing the `config.py` file.
+  - `/addnew <nom> <gift_ID>`
+    Tizimga yangi sovg'alar to'plamini qo'shadi. Dastur shu nom bilan topic ochadi va berilgan ID'dan foydalanib, joriy "upgrade" sonini Binary Search orqali avtomatik topadi.
+    *Masalan:* `/addnew SnoopDogg 6014591077976114307`
 
-| Field                      | Type              | Description                                                                                               |
-|----------------------------|-------------------|-----------------------------------------------------------------------------------------------------------|
-| SESSION_NAME               | String            | Name of the session file where the userbot's session will be stored                                       |
-| API_ID                     | Integer           | Your Telegram API ID obtained from my.telegram.org                                                        |
-| API_HASH                   | String            | Your Telegram API Hash corresponding to your API ID                                                       |
-| BOT_TOKENS                 | [String]          | Bot tokens provided by [BotFather](https://t.me/BotFather) of your Telegram bot to send and edit messages |
-| CHECK_INTERVAL             | Float             | Time interval (in seconds) between checks for new gifts                                                   |
-| CHECK_UPGRADES_PER_CYCLE   | Float             | Time interval (in seconds) to check upgradability of gifts per cycle                                      |
-| DATA_FILEPATH              | String            | Path to the file where the gift data is stored                                                            |
-| DATA_SAVER_DELAY           | Float             | Delay (in seconds) to save data to the file                                                               |
-| NOTIFY_CHAT_ID             | Integer           | Chat ID where new gifts' messages will be sent                                                            |
-| NOTIFY_UPGRADES_CHAT_ID    | Integer or `None` | Chat ID where gifts' upgradability messages will be sent                                                  |
-| NOTIFY_AFTER_STICKER_DELAY | Float             | Delay (in seconds) after sending a sticker before sending a message                                       |
-| NOTIFY_AFTER_TEXT_DELAY    | Float             | Delay (in seconds) after sending a message                                                                |
-| TIMEZONE                   | String            | Timezone for the messages' date & time (e.g., "Europe/Moscow")                                            |
-| HTTP_REQUEST_TIMEOUT       | Float             | Timeout for Bot API requests (in seconds)                                                                 |
+## 📞 Aloqa
 
-## Contact
+Savollar yoki takliflar uchun [muallif bilan bog'laning](https://t.me/menarzullayev/).
 
-For any questions or feedback, please contact me at [my socials](https://aryn.sek.su/).
+-----
 
----
+Agar **TezUpgrade** siz uchun foydali bo'lsa va loyiha rivojini qo'llab-quvvatlashni istasangiz, xayriya qilishingiz mumkin. Sizning hissangiz loyihani yanada yaxshilashga yordam beradi.
 
-If you find TG Gifts Notifier useful and would like to support its development, consider making a donation. Your contributions help in maintaining and improving the project.
+## Xayriya usullari
+**HUMO** - 9860 6004 0823 7573
+**UzCard** - 5614 6819 0148 7375
+**Mastercard** - 5477 3300 2178 3679
+**TON** - UQD6KUkX6M5eXTx5ysO__hR0svpI8UlU_rC2qcEnkxVwYKb8
 
-You can donate via the following methods listed on this [site](https://aryn.sek.su/donates).
-
-Thank you for your support!
+Qo'llab-quvvatlaganingiz uchun tashakkur\!
