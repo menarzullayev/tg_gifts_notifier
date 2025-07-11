@@ -89,17 +89,17 @@ def format_seconds_to_human_readable(total_seconds: int) -> str:
     parts: list[str] = []
 
     if days > 0:
-        parts.append(f"{days} day" + ("s" if days != 1 else ""))
+        parts.append(f"{days} kun" + ("s" if days != 1 else ""))
     if hours > 0:
-        parts.append(f"{hours} hour" + ("s" if hours != 1 else ""))
+        parts.append(f"{hours} soat" + ("s" if hours != 1 else ""))
     if minutes > 0:
-        parts.append(f"{minutes} minute" + ("s" if minutes != 1 else ""))
+        parts.append(f"{minutes} daqiqa" + ("s" if minutes != 1 else ""))
 
     if seconds > 0 or (not parts and total_seconds == 0):
-        parts.append(f"{seconds} second" + ("s" if seconds != 1 else ""))
+        parts.append(f"{seconds} soniya" + ("s" if seconds != 1 else ""))
 
     if not parts:
-        return "0 seconds"
+        return "0 soniya"
 
     elif len(parts) == 1:
         return parts[0]

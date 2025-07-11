@@ -25,6 +25,10 @@ class StarGiftData(BaseConfigModel):
     last_sale_timestamp: int | None = Field(default=None)
     is_upgradable: bool = Field(default=False)
 
+    last_checked_upgrade_id: int | None = Field(default=None)
+    live_topic_id: int | None = Field(default=None)
+    gift_slug: str | None = Field(default=None) 
+
 
 class StarGiftsData(BaseConfigModel):
     DATA_FILEPATH: Path = Field(exclude=True)
@@ -34,14 +38,20 @@ class StarGiftsData(BaseConfigModel):
     def load(cls, data_filepath: Path) -> "StarGiftsData":
         try:
             with data_filepath.open("r", encoding=constants.ENCODING) as file:
+                file_content = file.read()
+                # Fayl bo'sh emasligini tekshirish
+                if not file_content:
+                    return cls(DATA_FILEPATH=data_filepath)
+                
                 return cls.model_validate({
-                    **json.load(file),
+                    **json.loads(file_content),
                     "DATA_FILEPATH": data_filepath
                 })
 
-        except FileNotFoundError:
+        except (FileNotFoundError, json.JSONDecodeError):
+            # Agar fayl topilmasa yoki JSON xatoligi bo'lsa, yangi obyekt qaytariladi
             return cls(
-                DATA_FILEPATH = data_filepath
+                DATA_FILEPATH=data_filepath
             )
 
     def save(self) -> None:

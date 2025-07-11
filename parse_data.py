@@ -6,6 +6,10 @@ from pyrogram.raw.functions.payments.get_star_gift_upgrade_preview import GetSta
 from pyrogram.raw.types.star_gift import StarGift
 from pyrogram.raw.types.document_attribute_filename import DocumentAttributeFilename
 from pyrogram.file_id import FileId, FileType
+from pyrogram.raw.types.payments.star_gift_upgrade_preview import StarGiftUpgradePreview
+
+
+
 
 import utils
 import typing
@@ -68,7 +72,7 @@ async def get_all_star_gifts(
             total_amount = star_gift_raw.availability_total or 0,
             is_limited = star_gift_raw.limited or False,
             first_appearance_timestamp = star_gift_raw.first_sale_date or utils.get_current_timestamp(),
-            channel_number_sent_to = None,
+            # channel_number_sent_to = None,
             last_sale_timestamp = star_gift_raw.last_sale_date
         )
         for number, star_gift_raw in enumerate(sorted(
@@ -83,16 +87,24 @@ async def get_all_star_gifts(
         all_star_gifts_dict
     )
 
+async def get_upgrade_preview(app: Client, gift_id: int) -> StarGiftUpgradePreview | None:
+    """
+    Berilgan sovg'a uchun upgrade mavjudligini tekshiradi.
 
-async def check_is_star_gift_upgradable(app: Client, star_gift_id: int) -> bool:
+    Args:
+        app: Pyrogram client'i.
+        gift_id: Tekshirilayotgan sovg'aning ID'si.
+
+    Returns:
+        Agar yangi upgrade topilsa, StarGiftUpgradePreview obyektini, aks holda None qaytaradi.
+    """
     try:
-        await app.invoke(
+        # Telegram API ga so'rov yuborish
+        return await app.invoke(
             GetStarGiftUpgradePreview(
-                gift_id = star_gift_id
+                gift_id=gift_id
             )
         )
-
     except Exception:
-        return False
-
-    return True
+        # Har qanday xatolik yuzaga kelsa, None qaytaramiz
+        return None
