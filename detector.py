@@ -7,103 +7,179 @@ from io import BytesIO
 from itertools import cycle, groupby
 from bisect import bisect_left
 from functools import partial
+
 import math
 import asyncio
 import typing
 
 from parse_data import get_all_star_gifts
 from star_gifts_data import StarGiftData, StarGiftsData
+
 import utils
 import constants
 import config
-from pyrogram import filters
+
+from pyrogram import Client, types, filters
+
 
 timezone = _timezone(config.TIMEZONE)
+
 NULL_STR = ""
 
+
 T = typing.TypeVar("T")
+STAR_GIFT_RAW_T = dict[str, typing.Any]
 UPDATE_GIFTS_QUEUE_T = asyncio.Queue[tuple[StarGiftData, StarGiftData]]
 
+
+
 BOTS_AMOUNT = len(config.BOT_TOKENS)
+
 if BOTS_AMOUNT > 0:
     BOT_HTTP_CLIENT = AsyncClient(base_url="https://api.telegram.org/", timeout=config.HTTP_REQUEST_TIMEOUT)
+
     BOT_TOKENS_CYCLE = cycle(config.BOT_TOKENS)
+
 
 STAR_GIFTS_DATA = StarGiftsData.load(config.DATA_FILEPATH)
 last_star_gifts_data_saved_time: int | None = None
+
 logger = utils.get_logger(name=config.SESSION_NAME, log_filepath=constants.LOG_FILEPATH, console_log_level=config.CONSOLE_LOG_LEVEL, file_log_level=config.FILE_LOG_LEVEL)
 
+
+@typing.overload
+async def bot_send_request(method: str, data: dict[str, typing.Any] | None) -> dict[str, typing.Any]: ...
+
+
+@typing.overload
+async def bot_send_request(method: typing.Literal["editMessageText"], data: dict[str, typing.Any]) -> dict[str, typing.Any] | None: ...
+
+
 async def bot_send_request(method: str, data: dict[str, typing.Any] | None = None) -> dict[str, typing.Any] | None:
-    logger.debug(f"Sending request {method} with data: {data}")
+
     retries = BOTS_AMOUNT
     response = None
+
     for bot_token in BOT_TOKENS_CYCLE:
         retries -= 1
+
         if retries < 0:
             break
+
         try:
             response = (await BOT_HTTP_CLIENT.post(f"/bot{bot_token}/{method}", json=data)).json()
+
         except TimeoutException:
             logger.warning(f"Timeout exception while sending request {method} with data: {data}")
+
             continue
+
         if response.get("ok"):
             return response.get("result")
+
         elif method == "editMessageText" and isinstance(response.get("description"), str) and "message is not modified" in response["description"]:
             return
+
     raise RuntimeError(f"Failed to send request to Telegram API: {response}")
+
 
 async def detector(app: Client, new_gift_callback: typing.Callable[[StarGiftData], typing.Coroutine[None, None, typing.Any]] | None = None, update_gifts_queue: UPDATE_GIFTS_QUEUE_T | None = None) -> None:
     if new_gift_callback is None and update_gifts_queue is None:
         raise ValueError("At least one of new_gift_callback or update_gifts_queue must be provided")
 
+    # Birinchi marta ishga tushganda "boshlang'ich nuqta" yaratamiz
     if not STAR_GIFTS_DATA.star_gifts:
         logger.info("First run detected. Establishing baseline...")
         if not app.is_connected:
             await app.start()
+
         _, all_star_gifts_dict = await get_all_star_gifts(app)
+
         if all_star_gifts_dict:
             all_gifts_list = list(all_star_gifts_dict.values())
-            await star_gifts_data_saver(all_gifts_list)
-            logger.info(f"Baseline established with {len(all_gifts_list)} gifts. No notifications will be sent for these.")
 
+            # Barcha joriy sovg'alarni xabar yubormasdan bazaga saqlaymiz
+            await star_gifts_data_saver(all_gifts_list)
+            logger.info(f"Baseline established with {len(all_gifts_list)} gifts. Notifications will be sent only for new gifts.")
+
+            # Test uchun 3 ta tasodifiy sovg'ani tanlab, xabar yuboramiz
+            sample_size = min(1, len(all_gifts_list))
+            if new_gift_callback and sample_size > 0:
+                test_gifts = random.sample(all_gifts_list, sample_size)
+                logger.info(f"Sending notifications for {len(test_gifts)} random gifts for testing purposes.")
+                for star_gift in test_gifts:
+                    await new_gift_callback(star_gift)
+
+    # Asosiy kuzatuv sikli
     while True:
-        logger.debug("Checking for new gifts / updates...")
         if not app.is_connected:
             await app.start()
+
         _, all_star_gifts_dict = await get_all_star_gifts(app)
+
         old_star_gifts_dict = {star_gift.id: star_gift for star_gift in STAR_GIFTS_DATA.star_gifts}
+
         new_star_gifts = {star_gift_id: star_gift for star_gift_id, star_gift in all_star_gifts_dict.items() if star_gift_id not in old_star_gifts_dict}
 
         if new_star_gifts and new_gift_callback:
             logger.info(f"""Found {len(new_star_gifts)} new gifts: [{", ".join(map(str, new_star_gifts.keys()))}]""")
             for star_gift in new_star_gifts.values():
                 await new_gift_callback(star_gift)
+
         if update_gifts_queue:
             for star_gift_id, old_star_gift in old_star_gifts_dict.items():
                 new_star_gift = all_star_gifts_dict.get(star_gift_id)
                 if new_star_gift is None:
+                    logger.warning("Star gift not found in new gifts, skipping for updating", extra={"star_gift_id": str(star_gift_id)})
                     continue
                 new_star_gift.message_id = old_star_gift.message_id
                 if new_star_gift.available_amount < old_star_gift.available_amount:
                     update_gifts_queue.put_nowait((old_star_gift, new_star_gift))
+
         if new_star_gifts:
             await star_gifts_data_saver(list(new_star_gifts.values()))
+
         await asyncio.sleep(config.CHECK_INTERVAL)
+
 
 def get_notify_text(star_gift: StarGiftData) -> str:
     is_limited = star_gift.is_limited
-    available_percentage, available_percentage_is_same = utils.pretty_float(math.ceil(star_gift.available_amount / star_gift.total_amount * 100 * 100) / 100, get_is_same=True) if is_limited and star_gift.total_amount > 0 else (NULL_STR, False)
+
+    available_percentage, available_percentage_is_same = (
+        utils.pretty_float(math.ceil(star_gift.available_amount / star_gift.total_amount * 100 * 100) / 100, get_is_same=True)
+        if is_limited and star_gift.total_amount > 0
+        else (NULL_STR, False)
+    )
+
     return config.NOTIFY_TEXT.format(
         title=config.NOTIFY_TEXT_TITLES[is_limited],
-        number=star_gift.number, id=star_gift.id,
+        number=star_gift.number,
+        id=star_gift.id,
         total_amount=(config.NOTIFY_TEXT_TOTAL_AMOUNT.format(total_amount=utils.pretty_int(star_gift.total_amount)) if is_limited else NULL_STR),
-        available_amount=(config.NOTIFY_TEXT_AVAILABLE_AMOUNT.format(available_amount=utils.pretty_int(star_gift.available_amount), same_str=(NULL_STR if available_percentage_is_same else "~"), available_percentage=available_percentage, updated_datetime=utils.get_current_datetime(timezone)) if is_limited else NULL_STR),
-        sold_out=(config.NOTIFY_TEXT_SOLD_OUT.format(sold_out=utils.format_seconds_to_human_readable(star_gift.last_sale_timestamp - star_gift.first_appearance_timestamp)) if star_gift.last_sale_timestamp and star_gift.first_appearance_timestamp else NULL_STR),
+        available_amount=(
+            config.NOTIFY_TEXT_AVAILABLE_AMOUNT.format(
+                available_amount=utils.pretty_int(star_gift.available_amount),
+                same_str=("~" if not available_percentage_is_same else NULL_STR),
+                available_percentage=available_percentage,
+                updated_datetime=utils.get_current_datetime(timezone),
+            )
+            if is_limited
+            else NULL_STR
+        ),
+        sold_out=(
+            config.NOTIFY_TEXT_SOLD_OUT.format(sold_out=utils.format_seconds_to_human_readable(star_gift.last_sale_timestamp - star_gift.first_appearance_timestamp))
+            if star_gift.last_sale_timestamp and star_gift.first_appearance_timestamp
+            else NULL_STR
+        ),
         price=utils.pretty_int(star_gift.price),
         convert_price=utils.pretty_int(star_gift.convert_price),
-        footer=config.FOOTER_TEXT)
+        footer=config.FOOTER_TEXT,
+    )
+
+
 
 async def process_new_gift(app: Client, star_gift: StarGiftData) -> None:
+    reply_to_id = None
     try:
         binary = typing.cast(BytesIO, await app.download_media(message=star_gift.sticker_file_id, in_memory=True))
         binary.name = star_gift.sticker_file_name
@@ -111,74 +187,130 @@ async def process_new_gift(app: Client, star_gift: StarGiftData) -> None:
         reply_to_id = sticker_message.id
     except Exception as e:
         logger.error(f"Stiker yuborishda xato ({star_gift.id}): {e}. Matn xabari stikersiz yuboriladi.")
-        reply_to_id = None
 
     await asyncio.sleep(config.NOTIFY_AFTER_STICKER_DELAY)
-    response = await bot_send_request("sendMessage", {"chat_id": STAR_GIFTS_DATA.notify_chat_id, "text": get_notify_text(star_gift), "reply_to_message_id": reply_to_id, "parse_mode": "HTML", "disable_web_page_preview": True})
+    response = await bot_send_request(
+        "sendMessage",
+        {
+            "chat_id": STAR_GIFTS_DATA.notify_chat_id,
+            "text": get_notify_text(star_gift),
+            "reply_to_message_id": reply_to_id,
+            "parse_mode": "HTML",
+            "disable_web_page_preview": True,
+        },
+    )
     if response:
         star_gift.message_id = response.get("message_id")
         await star_gifts_data_saver(star_gift)
 
+
 async def process_update_gifts(update_gifts_queue: UPDATE_GIFTS_QUEUE_T) -> None:
     while True:
-        new_star_gifts_list: list[StarGiftData] = []
+        new_star_gifts: list[StarGiftData] = []
+
         while True:
             try:
                 _, new_star_gift = update_gifts_queue.get_nowait()
-                new_star_gifts_list.append(new_star_gift)
+
+                new_star_gifts.append(new_star_gift)
+
                 update_gifts_queue.task_done()
+
             except asyncio.QueueEmpty:
                 break
-        if not new_star_gifts_list:
+
+        if not new_star_gifts:
             await asyncio.sleep(0.1)
+
             continue
-        new_star_gifts_list.sort(key=lambda g: g.id)
-        for new_gift in [min(gifts, key=lambda g: g.available_amount) for _, gifts in groupby(new_star_gifts_list, key=lambda g: g.id)]:
-            if new_gift.message_id is not None:
-                await bot_send_request("editMessageText", {"chat_id": STAR_GIFTS_DATA.notify_chat_id, "message_id": new_gift.message_id, "text": get_notify_text(new_gift), "parse_mode": "HTML", "disable_web_page_preview": True})
-        await star_gifts_data_saver(new_star_gifts_list)
+
+        new_star_gifts.sort(key=lambda star_gift: star_gift.id)
+
+        for new_star_gift in [min(gifts, key=lambda star_gift: star_gift.available_amount) for _, gifts in groupby(new_star_gifts, key=lambda star_gift: star_gift.id)]:
+            if new_star_gift.message_id is None:
+                continue
+
+            await bot_send_request(
+                "editMessageText", {"chat_id": STAR_GIFTS_DATA.notify_chat_id, "message_id": new_star_gift.message_id, "text": get_notify_text(new_star_gift), "parse_mode": "HTML", "disable_web_page_preview": True}  # <-- Preview o'chirilgan
+            )
+            logger.debug(f"Star gift updated with {new_star_gift.available_amount} available amount", extra={"star_gift_id": str(new_star_gift.id)})
+
+        await star_gifts_data_saver(new_star_gifts)
+
 
 star_gifts_data_saver_lock = asyncio.Lock()
+
+
 async def star_gifts_data_saver(star_gifts: StarGiftData | list[StarGiftData]) -> None:
     global STAR_GIFTS_DATA, last_star_gifts_data_saved_time
+
     async with star_gifts_data_saver_lock:
         if not isinstance(star_gifts, list):
             star_gifts = [star_gifts]
+
         updated_gifts_list = list(STAR_GIFTS_DATA.star_gifts)
+
         for star_gift in star_gifts:
             pos = bisect_left([gift.id for gift in updated_gifts_list], star_gift.id)
+
             if pos < len(updated_gifts_list) and updated_gifts_list[pos].id == star_gift.id:
                 updated_gifts_list[pos] = star_gift
+
             else:
                 updated_gifts_list.insert(pos, star_gift)
+
+        # --- QUYIDAGI QATORNI QO'SHING ---
         STAR_GIFTS_DATA.star_gifts = updated_gifts_list
+        # --- YUQORIDAGI QATORNI QO'SHING ---
+
         if last_star_gifts_data_saved_time is None or last_star_gifts_data_saved_time + config.DATA_SAVER_DELAY < utils.get_current_timestamp():
             STAR_GIFTS_DATA.save()
+
             last_star_gifts_data_saved_time = utils.get_current_timestamp()
 
+
 async def find_last_upgrade_by_binary_search(slug: str, max_range: int = 1_000_000) -> int:
+    """
+    Binary Search algoritmi yordamida mavjud bo'lgan eng oxirgi upgrade raqamini topadi.
+    """
     logger.info(f"`{slug}` uchun Binary Search orqali joriy upgrade soni qidirilmoqda...")
-    low, high, last_found = 1, max_range, 0
+    low = 1
+    high = max_range
+    last_found = 0
+
     async with AsyncClient(timeout=10) as client:
         while low <= high:
             mid = (low + high) // 2
-            if mid == 0: break
+            if mid == 0:
+                break
+
             url = f"https://t.me/nft/{slug}-{mid}"
             try:
                 response = await client.get(url, follow_redirects=False)
+
                 if response.status_code == 200:
+                    # 'mid' raqami mavjud. Demak, bu raqam yoki undan kattaroqlari ham bo'lishi mumkin.
                     last_found = mid
                     low = mid + 1
                 else:
+                    # 'mid' raqami mavjud emas. Demak, oxirgi raqam quyi qismda.
                     high = mid - 1
-                await asyncio.sleep(0.25)
+
+                await asyncio.sleep(0.25)  # Serverga ortiqcha bosim o'tkazmaslik uchun
+
             except Exception as e:
                 logger.warning(f"Binary search tekshiruvida xato ({url}): {e}")
-                high = mid - 1
+                high = mid - 1  # Xatolik bo'lsa, bu diapazonni qisqartiramiz
+
     logger.info(f"`{slug}` uchun topilgan oxirgi raqam: {last_found}")
     return last_found
 
+
 async def upgrade_live_tracker(app: Client) -> None:
+    """
+    Kuzatuvga qo'shilgan sovg'alar uchun ketma-ket upgrade'larni
+    HTTP so'rov orqali tekshiradi va topilganlarini topic'ga yuboradi.
+    """
     next_check_numbers = {}
     while True:
         trackable_gifts = [g for g in STAR_GIFTS_DATA.star_gifts if g.is_upgradable and g.gift_slug]
@@ -225,25 +357,36 @@ async def upgrade_live_tracker(app: Client) -> None:
                     break
         await asyncio.sleep(config.UPGRADE_CHECK_INTERVAL)
 
+
+
 async def logger_wrapper(coro: typing.Awaitable[T]) -> T | None:
     try:
         return await coro
     except Exception as ex:
         logger.exception(f"""Error in {getattr(coro, "__name__", coro)}: {ex}""")
 
+
 async def main() -> None:
     logger.info("Starting gifts detector...")
-    app = Client(name=config.SESSION_NAME, api_id=config.API_ID, api_hash=config.API_HASH, workdir=os.getcwd())
-    await app.start()
 
+    app = Client(
+        name=config.SESSION_NAME,
+        api_id=config.API_ID,
+        api_hash=config.API_HASH,
+        workdir=os.getcwd()
+    )
+
+    # --- Barcha buyruq handerlarini shu yerga yig'amiz ---
     @app.on_message(filters.command("addnew", prefixes=config.COMMAND_PREFIX) & filters.user(config.ADMIN_IDS))
     async def handle_add_new_command(client: Client, message: types.Message):
         try:
             if len(message.command) != 3: raise ValueError
             new_gift_slug, new_gift_id = message.command[1], int(message.command[2])
             target_gift = next((g for g in STAR_GIFTS_DATA.star_gifts if g.id == new_gift_id), None)
+
             await message.reply_text(f"`{new_gift_slug}` uchun joriy 'upgrade' soni Binary Search orqali qidirilmoqda...")
             last_upgrade_num = await find_last_upgrade_by_binary_search(new_gift_slug)
+
             if target_gift:
                 logger.info(f"Mavjud sovg'a ({new_gift_id}) 'Live Upgrade' kuzatuviga sozlanmoqda.")
                 target_gift.gift_slug, target_gift.is_upgradable, target_gift.live_topic_id, target_gift.last_checked_upgrade_id = new_gift_slug, True, None, last_upgrade_num
@@ -277,33 +420,38 @@ async def main() -> None:
         except (IndexError, ValueError):
             await message.reply_text("❌ Xatolik: `/setlivechat <chat_id>`")
 
-    if STAR_GIFTS_DATA.notify_chat_id is None:
-        STAR_GIFTS_DATA.notify_chat_id = config.NOTIFY_CHAT_ID
-    if STAR_GIFTS_DATA.upgrade_live_chat_id is None:
-        STAR_GIFTS_DATA.upgrade_live_chat_id = config.UPGRADE_LIVE_CHAT_ID
+    # --- Asosiy dastur mantig'i ---
+    async with app:
+        # Saqlangan sozlamalarni o'qiymiz yoki standart qiymatlarni o'rnatamiz
+        if STAR_GIFTS_DATA.notify_chat_id is None:
+            STAR_GIFTS_DATA.notify_chat_id = config.NOTIFY_CHAT_ID
+        if STAR_GIFTS_DATA.upgrade_live_chat_id is None:
+            STAR_GIFTS_DATA.upgrade_live_chat_id = config.UPGRADE_LIVE_CHAT_ID
 
-    tasks = []
-    update_gifts_queue = UPDATE_GIFTS_QUEUE_T() if BOTS_AMOUNT > 0 else None
-    if update_gifts_queue:
-        tasks.append(asyncio.create_task(logger_wrapper(process_update_gifts(update_gifts_queue=update_gifts_queue))))
-    else:
-        logger.info("No bots available, skipping update gifts processing")
+        tasks = []
+        update_gifts_queue = UPDATE_GIFTS_QUEUE_T() if BOTS_AMOUNT > 0 else None
+        if update_gifts_queue:
+            tasks.append(asyncio.create_task(logger_wrapper(process_update_gifts(update_gifts_queue))))
+        else:
+            logger.info("No bots available, skipping update gifts processing")
 
-    if STAR_GIFTS_DATA.upgrade_live_chat_id:
-        tasks.append(asyncio.create_task(logger_wrapper(upgrade_live_tracker(app))))
-    else:
-        logger.info("Upgrade Live channel is not set, skipping star gifts live upgrades tracking")
+        if STAR_GIFTS_DATA.upgrade_live_chat_id:
+            tasks.append(asyncio.create_task(logger_wrapper(upgrade_live_tracker(app))))
+        else:
+            logger.info("Upgrade Live channel is not set, skipping star gifts live upgrades tracking")
 
-    tasks.append(asyncio.create_task(logger_wrapper(detector(app=app, new_gift_callback=partial(process_new_gift, app), update_gifts_queue=update_gifts_queue))))
+        tasks.append(asyncio.create_task(logger_wrapper(detector(app, new_gift_callback=partial(process_new_gift, app), update_gifts_queue=update_gifts_queue))))
 
-    await asyncio.gather(*tasks)
+        logger.info("Bot is running... All tasks started.")
+        await asyncio.gather(*tasks)
 
 
 if __name__ == "__main__":
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
-        pass
+        logger.info("Bot stopped by user.")
     finally:
         if STAR_GIFTS_DATA.star_gifts or STAR_GIFTS_DATA.notify_chat_id is not None:
             STAR_GIFTS_DATA.save()
+            logger.info("Final data saved. Exiting.")
