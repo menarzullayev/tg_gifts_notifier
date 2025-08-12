@@ -310,7 +310,7 @@ async def upgrade_live_tracker(app: Client) -> None:
     Kuzatuvdagi sovg'alarni ommaviy asinxron so'rovlar ("batch") yordamida tekshiradi.
     """
     next_check_numbers = {}
-    BATCH_SIZE = 50  # Bir vaqtda nechta ID tekshirilishini belgilaymiz
+    BATCH_SIZE = 15  # Bir vaqtda nechta ID tekshirilishini belgilaymiz
 
     # HTTP client'ni bir marta yaratib, butun sikl davomida qayta ishlatamiz
     async with AsyncClient(timeout=10) as client:
