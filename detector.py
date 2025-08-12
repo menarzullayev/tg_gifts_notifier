@@ -102,7 +102,7 @@ async def detector(app: Client, new_gift_callback: typing.Callable[[StarGiftData
             await star_gifts_data_saver(all_gifts_list)
             logger.info(f"Baseline established with {len(all_gifts_list)} gifts. Notifications will be sent only for new gifts.")
 
-            # Test uchun 3 ta tasodifiy sovg'ani tanlab, xabar yuboramiz
+            # Test uchun 1 ta tasodifiy sovg'ani tanlab, xabar yuboramiz
             sample_size = min(1, len(all_gifts_list))
             if new_gift_callback and sample_size > 0:
                 test_gifts = random.sample(all_gifts_list, sample_size)
@@ -231,7 +231,7 @@ async def process_update_gifts(update_gifts_queue: UPDATE_GIFTS_QUEUE_T) -> None
                 continue
 
             await bot_send_request(
-                "editMessageText", {"chat_id": STAR_GIFTS_DATA.notify_chat_id, "message_id": new_star_gift.message_id, "text": get_notify_text(new_star_gift), "parse_mode": "HTML", "disable_web_page_preview": True}  # <-- Preview o'chirilgan
+                "editMessageText", {"chat_id": STAR_GIFTS_DATA.notify_chat_id, "message_id": new_star_gift.message_id, "text": get_notify_text(new_star_gift), "parse_mode": "HTML", "disable_web_page_preview": True}
             )
             logger.debug(f"Star gift updated with {new_star_gift.available_amount} available amount", extra={"star_gift_id": str(new_star_gift.id)})
 
@@ -259,9 +259,7 @@ async def star_gifts_data_saver(star_gifts: StarGiftData | list[StarGiftData]) -
             else:
                 updated_gifts_list.insert(pos, star_gift)
 
-        # --- QUYIDAGI QATORNI QO'SHING ---
         STAR_GIFTS_DATA.star_gifts = updated_gifts_list
-        # --- YUQORIDAGI QATORNI QO'SHING ---
 
         if last_star_gifts_data_saved_time is None or last_star_gifts_data_saved_time + config.DATA_SAVER_DELAY < utils.get_current_timestamp():
             STAR_GIFTS_DATA.save()
@@ -306,70 +304,99 @@ async def find_last_upgrade_by_binary_search(slug: str, max_range: int = 1_000_0
     return last_found
 
 
-
+# --- YANGILANGAN FUNKSIYA ---
 async def upgrade_live_tracker(app: Client) -> None:
     """
-    Kuzatuvdagi sovg'alarni "sprint" usulida tekshiradi: bitta sovg'a uchun
-    barcha mavjud upgrade'larni topmaguncha to'xtamaydi.
+    Kuzatuvdagi sovg'alarni ommaviy asinxron so'rovlar ("batch") yordamida tekshiradi.
     """
     next_check_numbers = {}
+    BATCH_SIZE = 50  # Bir vaqtda nechta ID tekshirilishini belgilaymiz
 
-    while True:
-        trackable_gifts = [g for g in STAR_GIFTS_DATA.star_gifts if g.is_upgradable and g.gift_slug]
+    # HTTP client'ni bir marta yaratib, butun sikl davomida qayta ishlatamiz
+    async with AsyncClient(timeout=10) as client:
+        while True:
+            trackable_gifts = [g for g in STAR_GIFTS_DATA.star_gifts if g.is_upgradable and g.gift_slug]
 
-        for star_gift in trackable_gifts:
-            # Agar bu sovg'a birinchi marta tekshirilayotgan bo'lsa, uning boshlang'ich raqamini o'rnatamiz
-            if star_gift.gift_slug not in next_check_numbers:
-                start_num = star_gift.last_checked_upgrade_id or 0
-                next_check_numbers[star_gift.gift_slug] = start_num + 1
+            if not trackable_gifts:
+                await asyncio.sleep(config.UPGRADE_CHECK_INTERVAL)
+                continue
 
-            # Agar topic hali ochilmagan bo'lsa, ochamiz
-            if star_gift.live_topic_id is None:
-                try:
-                    created_topic = await app.create_forum_topic(chat_id=STAR_GIFTS_DATA.upgrade_live_chat_id, title=star_gift.gift_slug)
-                    star_gift.live_topic_id = created_topic.id
-                    await bot_send_request("sendMessage", {"chat_id": STAR_GIFTS_DATA.upgrade_live_chat_id, "message_thread_id": star_gift.live_topic_id, "text": config.NOTIFY_UPGRADE_LIVE_START_TEXT.format(gift_slug=star_gift.gift_slug, footer=config.FOOTER_TEXT), "parse_mode": "HTML", "disable_web_page_preview": True})
-                    await star_gifts_data_saver(star_gift)
-                except Exception as e:
-                    logger.error(f"'{star_gift.gift_slug}' uchun topic yaratishda xato: {e}")
-                    continue
-            
-            # --- YANGILANGAN MANTIQ: "SPRINT" SIKLI ---
-            while True:
-                current_check_num = next_check_numbers.get(star_gift.gift_slug, 1)
-                url = f"https://t.me/nft/{star_gift.gift_slug}-{current_check_num}"
+            for star_gift in trackable_gifts:
+                # Agar bu sovg'a birinchi marta tekshirilayotgan bo'lsa, uning boshlang'ich raqamini o'rnatamiz
+                if star_gift.gift_slug not in next_check_numbers:
+                    start_num = star_gift.last_checked_upgrade_id or 0
+                    next_check_numbers[star_gift.gift_slug] = start_num + 1
+
+                # Agar topic hali ochilmagan bo'lsa, ochamiz
+                if star_gift.live_topic_id is None:
+                    try:
+                        created_topic = await app.create_forum_topic(chat_id=STAR_GIFTS_DATA.upgrade_live_chat_id, title=star_gift.gift_slug)
+                        star_gift.live_topic_id = created_topic.id
+                        await bot_send_request("sendMessage", {"chat_id": STAR_GIFTS_DATA.upgrade_live_chat_id, "message_thread_id": star_gift.live_topic_id, "text": config.NOTIFY_UPGRADE_LIVE_START_TEXT.format(gift_slug=star_gift.gift_slug, footer=config.FOOTER_TEXT), "parse_mode": "HTML", "disable_web_page_preview": True})
+                        await star_gifts_data_saver(star_gift)
+                    except Exception as e:
+                        logger.error(f"'{star_gift.gift_slug}' uchun topic yaratishda xato: {e}")
+                        continue
                 
-                try:
-                    async with AsyncClient(timeout=5) as client:
-                        response = await client.get(url, follow_redirects=False)
+                # --- YANGILANGAN MANTIQ: Ommaviy "SPRINT" SIKLI ---
+                while True:  # Har bir sovg'a uchun bir nechta batch'ni tekshirish uchun sikl
+                    start_num = next_check_numbers.get(star_gift.gift_slug, 1)
+                    
+                    numbers_to_check = list(range(start_num, start_num + BATCH_SIZE))
+                    tasks = []
+                    for number in numbers_to_check:
+                        url = f"https://t.me/nft/{star_gift.gift_slug}-{number}"
+                        tasks.append(client.get(url, follow_redirects=False))
+                    
+                    # Barcha so'rovlarni parallel ravishda yuboramiz
+                    responses = await asyncio.gather(*tasks, return_exceptions=True)
+                    
+                    found_count_in_batch = 0
+                    last_found_in_batch = 0
 
-                    if response.status_code == 200:
-                        logger.info(f"[+] TOPILDI: {star_gift.gift_slug}-{current_check_num}")
+                    for i, res in enumerate(responses):
+                        current_check_num = numbers_to_check[i]
+                        
+                        # Xatolik yoki topilmagan holat
+                        if isinstance(res, Exception) or res.status_code != 200:
+                            # Agar birinchi elementdayoq xatolik bo'lsa, bu batchda hech narsa yo'q.
+                            # Agar keyingi elementlarda xatolik bo'lsa, demak, shu yergacha bo'lganlar mavjud.
+                            next_check_numbers[star_gift.gift_slug] = current_check_num
+                            break  # Bu batch'ni tekshirishni to'xtatamiz
+
+                        # Muvaffaqiyatli topildi
+                        found_count_in_batch += 1
+                        last_found_in_batch = current_check_num
+                        logger.info(f"[+] TOPILDI (BATCH): {star_gift.gift_slug}-{current_check_num}")
                         
                         final_gift_name = star_gift.gift_slug or str(star_gift.id)
-                        await bot_send_request("sendMessage", {"chat_id": STAR_GIFTS_DATA.upgrade_live_chat_id, "message_thread_id": star_gift.live_topic_id, "text": config.NOTIFY_UPGRADE_LIVE_MESSAGE_FORMAT.format(gift_name=final_gift_name, upgraded_id=current_check_num, footer=config.FOOTER_TEXT), "parse_mode": "HTML", "disable_web_page_preview": False})
                         
-                        next_check_numbers[star_gift.gift_slug] += 1
-                        star_gift.last_checked_upgrade_id = current_check_num
-                        await star_gifts_data_saver(star_gift)
-                        await asyncio.sleep(0.1) # Har bir topilgan upgrade orasida kichik pauza
-                    else:
-                        # Bu raqamdagi upgrade topilmadi, demak, "sprint" tugadi.
-                        break
-                except Exception as e:
-                    error_text = str(e).lower()
-                    if "message thread not found" in error_text:
-                        logger.warning(f"Topic (ID: {star_gift.live_topic_id}) o'chirilgan. ID tozalanmoqda.")
-                        star_gift.live_topic_id = None
-                        next_check_numbers.pop(star_gift.gift_slug, None)
-                        await star_gifts_data_saver(star_gift)
-                    else:
-                        logger.warning(f"URL tekshirishda xato ({url}): {e}")
-                    break
+                        # Xabar yuborish
+                        await bot_send_request("sendMessage", {
+                            "chat_id": STAR_GIFTS_DATA.upgrade_live_chat_id, 
+                            "message_thread_id": star_gift.live_topic_id, 
+                            "text": config.NOTIFY_UPGRADE_LIVE_MESSAGE_FORMAT.format(gift_name=final_gift_name, upgraded_id=current_check_num, footer=config.FOOTER_TEXT), 
+                            "parse_mode": "HTML", 
+                            "disable_web_page_preview": False
+                        })
+                        
+                        # Kichik pauza, Telegram API'ga bosimni kamaytirish uchun
+                        await asyncio.sleep(0.1) 
 
-        # Barcha sovg'alarni va ularning "sprint"larini tugatgandan so'ng, umumiy pauza qilamiz.
-        await asyncio.sleep(config.UPGRADE_CHECK_INTERVAL)
+                    # Agar batch'da biror nima topilgan bo'lsa, ma'lumotni saqlaymiz
+                    if last_found_in_batch > 0:
+                        star_gift.last_checked_upgrade_id = last_found_in_batch
+                        await star_gifts_data_saver(star_gift)
 
+                    # Agar batch to'liq muvaffaqiyatli bo'lmagan bo'lsa (oxiriga yetdik)
+                    if found_count_in_batch < BATCH_SIZE:
+                        break  # Keyingi sovg'aga o'tish uchun batch siklidan chiqamiz
+                    else:
+                        # Batch to'liq topildi, keyingi batch'ga tayyorlanamiz
+                        next_check_numbers[star_gift.gift_slug] = start_num + BATCH_SIZE
+
+            # Barcha sovg'alarni bir aylanib chiqqandan so'ng umumiy pauza
+            await asyncio.sleep(config.UPGRADE_CHECK_INTERVAL)
 
 
 async def logger_wrapper(coro: typing.Awaitable[T]) -> T | None:
