@@ -194,8 +194,56 @@ async def upgrade_processor() -> None:
         except Exception as e:
             logger.error(f"Error in upgrade_processor: {e}", exc_info=True)
 
+# --- 4-YECHIM UCHUN YORDAMCHI FUNKSIYA ---
+async def find_adaptive_edge(client: AsyncClient, slug: str, start_from: int) -> int:
+    """
+    "Sakrash" va "binary search" yordamida eng oxirgi mavjud ID'ni samarali topadi.
+    """
+    JUMP_SIZE = 1000  # Har bir sakrashdagi qadam
+    last_known_good = start_from
+    current_pos = start_from
+
+    # 1. Katta sakrashlar bilan oldinga yurish
+    while True:
+        check_id = current_pos + JUMP_SIZE
+        try:
+            res = await client.get(f"https://t.me/nft/{slug}-{check_id}")
+            if res.status_code == 200:
+                last_known_good = check_id
+                current_pos = check_id
+                logger.debug(f"JUMP successful for {slug} to {check_id}")
+                await asyncio.sleep(0.1) # Kichik pauza
+            else:
+                # Sakrash muvaffaqiyatsiz, demak chegara shu oraliqda
+                break
+        except Exception:
+            break # Xatolik bo'lsa ham to'xtaymiz
+
+    # 2. Aniq chegarani topish uchun binary search
+    low = last_known_good + 1
+    high = last_known_good + JUMP_SIZE -1
+    final_edge = last_known_good
+
+    while low <= high:
+        mid = (low + high) // 2
+        if mid <= final_edge: break # Keraksiz tekshiruvlarni oldini olish
+        try:
+            res = await client.get(f"https://t.me/nft/{slug}-{mid}")
+            if res.status_code == 200:
+                final_edge = mid
+                low = mid + 1
+            else:
+                high = mid - 1
+        except Exception:
+            high = mid - 1 # Xatolik bo'lsa, yuqori chegarani pasaytiramiz
+    
+    if final_edge > start_from:
+        logger.info(f"Adaptive edge for {slug} found at: {final_edge} (started from {start_from})")
+    
+    return final_edge
+
+# --- 4-YECHIM BILAN YANGILANGAN ASOSIY TRACKER ---
 async def upgrade_live_tracker(app: Client) -> None:
-    next_check_numbers = {}
     BATCH_SIZE = 50
     async with AsyncClient(timeout=10) as client:
         while True:
@@ -203,9 +251,9 @@ async def upgrade_live_tracker(app: Client) -> None:
             if not trackable_gifts:
                 await asyncio.sleep(config.UPGRADE_CHECK_INTERVAL)
                 continue
+
             for star_gift in trackable_gifts:
-                if star_gift.gift_slug not in next_check_numbers:
-                    next_check_numbers[star_gift.gift_slug] = (star_gift.last_checked_upgrade_id or 0) + 1
+                # Topic ID'ni tekshirish va yaratish
                 if star_gift.live_topic_id is None:
                     logger.info(f"'{star_gift.gift_slug}' uchun Topic ID mavjud emas. Telegram'dan qidirilmoqda...")
                     existing_topic_id = await find_topic_by_title(app, SETTINGS["upgrade_live_chat_id"], star_gift.gift_slug)
@@ -222,24 +270,30 @@ async def upgrade_live_tracker(app: Client) -> None:
                             continue
                     ALL_STAR_GIFTS[star_gift.id] = star_gift
                     await db.save_gifts([star_gift])
-                
-                while True:
-                    start_num = next_check_numbers.get(star_gift.gift_slug, 1)
-                    numbers_to_check = list(range(start_num, start_num + BATCH_SIZE))
-                    tasks = [client.get(f"https://t.me/nft/{star_gift.gift_slug}-{number}", follow_redirects=False) for number in numbers_to_check]
-                    responses = await asyncio.gather(*tasks, return_exceptions=True)
-                    found_count = 0
-                    for i, res in enumerate(responses):
-                        current_check_num = numbers_to_check[i]
-                        if isinstance(res, Exception) or res.status_code != 200:
-                            next_check_numbers[star_gift.gift_slug] = current_check_num
-                            break
-                        found_count += 1
-                        logger.info(f"[+] QUEUED (BATCH): {star_gift.gift_slug}-{current_check_num}")
-                        await UPGRADE_QUEUE.put((star_gift, current_check_num))
-                    if found_count < BATCH_SIZE: break
-                    else: next_check_numbers[star_gift.gift_slug] = start_num + BATCH_SIZE
+
+                # 1. Eng so'nggi mavjud ID'ni adaptiv usulda topish
+                last_processed_id = star_gift.last_checked_upgrade_id or 0
+                latest_id_on_tg = await find_adaptive_edge(client, star_gift.gift_slug, last_processed_id)
+
+                # 2. Agar yangi ID'lar topilsa, oraliqni qayta ishlash
+                if latest_id_on_tg > last_processed_id:
+                    logger.info(f"Processing gap for {star_gift.gift_slug} from {last_processed_id + 1} to {latest_id_on_tg}")
+                    
+                    # Oraliqni BATCH_SIZE bo'yicha bo'lib, navbatga qo'yamiz
+                    for i in range(last_processed_id + 1, latest_id_on_tg + 1, BATCH_SIZE):
+                        batch_start = i
+                        batch_end = min(i + BATCH_SIZE - 1, latest_id_on_tg)
+                        numbers_in_batch = list(range(batch_start, batch_end + 1))
+                        
+                        for num in numbers_in_batch:
+                            # Bu yerda qayta tekshirish shart emas, chunki oraliq mavjudligi aniq
+                            await UPGRADE_QUEUE.put((star_gift, num))
+                        
+                        logger.debug(f"Queued batch for {star_gift.gift_slug}: {batch_start}-{batch_end}")
+            
+            # Barcha sovg'alarni tekshirib bo'lgach, umumiy pauza
             await asyncio.sleep(config.UPGRADE_CHECK_INTERVAL)
+
 
 async def logger_wrapper(coro: typing.Awaitable[T]) -> T | None:
     try: return await coro
